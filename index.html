@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Discovery Dental — Discover Your Smile in 3D</title>
+<meta name="description" content="An interactive 3D journey through Discovery Dental in Ajax, Ontario — iTero scanning, Invisalign, whitening, implants and same-day emergency care.">
+<meta name="theme-color" content="#03141b">
+<meta property="og:title" content="Discovery Dental — Discover Your Smile in 3D">
+<meta property="og:description" content="Fly through an interactive Three.js world of family, cosmetic and emergency dentistry in Ajax, ON.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Inter:wght@300..600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
+</head>
+<body>
+
+<canvas id="gl" aria-hidden="true"></canvas>
+
+<div id="loader"><div class="ld-mark">discovery</div><div class="ld-bar"><i></i></div></div>
+<div id="nogl"><h2>Your browser can’t run the 3D scene.</h2><p>Try a recent Chrome, Safari, Edge or Firefox with hardware acceleration on — or visit <a href="https://discoverydental.com/">discoverydental.com</a>.</p></div>
+
+<header class="bar">
+  <a class="brand" href="#top" aria-label="Discovery Dental — back to start">
+    <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><path d="M16 3c-3 0-4.6 1.2-7 1.2C6.2 4.2 4 6.6 4 10.4c0 3.2 1.4 5.4 2 8.8.6 3.4.9 8 3.2 8.8 2.2.7 2.9-3.6 3.6-6.2.4-1.4.8-2.4 3.2-2.4s2.8 1 3.2 2.4c.7 2.6 1.4 6.9 3.6 6.2 2.3-.8 2.6-5.4 3.2-8.8.6-3.4 2-5.6 2-8.8 0-3.8-2.2-6.2-5-6.2C20.6 4.2 19 3 16 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    <span>discovery <em>dental</em></span>
+  </a>
+  <div class="bar-r">
+    <button id="soundBtn" class="ghost" aria-pressed="false" title="Toggle sound"><span class="dot"></span><span id="soundLbl">Sound off</span></button>
+    <a class="pill" href="https://discoverydental.com/contact#formBoxright21" target="_blank" rel="noopener">Book an appointment</a>
+  </div>
+</header>
+
+<div class="progress"><i id="progFill"></i></div>
+<nav class="dots" id="dots" aria-label="Chapters"></nav>
+<div id="tags" aria-hidden="true"></div>
+<div id="cursor"><i></i><b></b></div>
+
+<main id="top">
+
+  <section class="chapter c-hero" data-name="Welcome">
+    <div class="copy">
+      <p class="eyebrow rv">Ajax, Ontario · Dr. Mitchel Shields</p>
+      <h1 class="split big">Discover the smile you were <em>meant</em> to love.</h1>
+      <p class="lede rv">Family, emergency and cosmetic dentistry from a team that makes your visit feel more like seeing friends than going to the dentist.</p>
+      <div class="cta rv">
+        <a class="btn primary" href="#scan" data-go="1">Begin the journey <span>↓</span></a>
+        <a class="btn" href="tel:+19054280188">Call 905-428-0188</a>
+      </div>
+      <ul class="chips rv">
+        <li>10+ years in Ajax</li><li>Same-day appointments</li><li>Open till 7 pm Mon–Thu</li>
+      </ul>
+    </div>
+    <p class="hint rv"><b></b> Drag the tooth · click for sparkle</p>
+  </section>
+
+  <section class="chapter" id="scan" data-name="Precision">
+    <div class="copy">
+      <p class="eyebrow rv">01 — Precision</p>
+      <h2 class="split">Seen in perfect <em>detail.</em></h2>
+      <p class="lede rv">An iTero digital scanner and digital x-rays give Dr. Shields a precise picture of your smile — quick, comfortable, and easy to understand.</p>
+      <div class="seg rv" id="scanSeg" role="group" aria-label="View mode">
+        <button class="on" data-mode="scan">3D scan</button>
+        <button data-mode="xray">Digital x-ray</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" data-name="Invisalign">
+    <div class="copy">
+      <p class="eyebrow rv">02 — Invisalign®</p>
+      <h2 class="split">Straighter, without the <em>metal.</em></h2>
+      <p class="lede rv">Clear aligners straighten your teeth without drawing attention — so you can smile with confidence every step of the way. Slide through the treatment and watch a smile come into line.</p>
+      <div class="ctrl rv">
+        <div class="ctrl-top"><span>Aligner tray</span><b id="alignOut">1 / 24</b></div>
+        <input id="align" type="range" min="0" max="100" value="0" aria-label="Aligner progress">
+        <div class="ctrl-row"><button class="ghost sm" id="alignReplay">↻ Replay</button><small>Illustrative only — results vary by patient.</small></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" data-name="Brighten">
+    <div class="copy">
+      <p class="eyebrow rv">03 — Cosmetic</p>
+      <h2 class="split">Brighter. The kind that gets a <em>“wow.”</em></h2>
+      <p class="lede rv">Teeth whitening and porcelain veneers that fix chips, hide stains and give you results that look completely natural.</p>
+      <div class="ctrl rv">
+        <div class="ctrl-top"><span>Shade</span><b id="shadeOut">A4</b></div>
+        <input id="shade" type="range" min="0" max="100" value="0" aria-label="Whitening shade">
+        <div class="ctrl-row"><button class="btn primary sm" id="brightenBtn">✦ Brighten my smile</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" data-name="Rebuild">
+    <div class="copy">
+      <p class="eyebrow rv">04 — Restorative</p>
+      <h2 class="split">Rebuilt from the <em>root up.</em></h2>
+      <p class="lede rv">Dental implants, crowns and bridges restore both the function and the look of your smile. Pull it apart and see how every piece fits.</p>
+      <div class="ctrl rv">
+        <div class="ctrl-top"><span>Assemble</span><b id="explodeOut">Assembled</b><span>Explode</span></div>
+        <input id="explode" type="range" min="0" max="100" value="0" aria-label="Explode implant">
+        <div class="card mini" id="partCard"><h4>Hover a part</h4><p>Crown, abutment, titanium implant and bone — each does its own job.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" data-name="Rescue">
+    <div class="copy">
+      <p class="eyebrow rv">05 — Emergency care</p>
+      <h2 class="split">Toothaches don’t <em>wait.</em></h2>
+      <p class="lede rv">Broken tooth, lost filling, swelling or severe pain? We keep time open daily for urgent cases — and our goal is to ease your pain fast.</p>
+      <div class="cta rv">
+        <button class="btn danger" id="reliefBtn"><span id="reliefLbl">Feel the pain</span></button>
+        <a class="btn" href="tel:+19054280188">Call 905-428-0188</a>
+      </div>
+      <p class="note rv" id="reliefNote">Tap the button to see how we change the story.</p>
+    </div>
+  </section>
+
+  <section class="chapter" data-name="Everything">
+    <div class="copy">
+      <p class="eyebrow rv">06 — Everything in orbit</p>
+      <h2 class="split">One hub for every <em>smile need.</em></h2>
+      <p class="lede rv">Preventive, restorative and cosmetic care for the whole family. Hover an orbit, click a service.</p>
+      <div class="card rv" id="svcCard">
+        <h4 id="svcTitle">Pick a service</h4>
+        <p id="svcText">Twelve services orbit one friendly clinic. Click any glowing orb to learn more.</p>
+        <a id="svcLink" href="https://discoverydental.com/services/" target="_blank" rel="noopener">See all services ↗</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter last" data-name="Visit">
+    <div class="copy">
+      <p class="eyebrow rv">07 — Come say hi</p>
+      <h2 class="split">Your own dental hub, in <em>Ajax.</em></h2>
+      <p class="lede rv">Small-town warmth with big-city amenities: a relaxed waiting area, tea &amp; coffee bar, most insurance plans accepted, monthly payment plans up to five years, and 10% off for seniors.</p>
+      <div class="info rv">
+        <div><small>Hours</small><b>Mon – Thu · 8:30 am – 7 pm</b></div>
+        <div><small>Visit</small><b>570 Westney Rd S #7, Ajax, ON</b></div>
+        <div><small>Call</small><b><a href="tel:+19054280188">905-428-0188</a></b></div>
+        <div><small>Email</small><b><a href="mailto:appointments@discoverydental.com">appointments@discoverydental.com</a></b></div>
+      </div>
+      <div class="cta rv">
+        <a class="btn primary" href="https://discoverydental.com/contact#formBoxright21" target="_blank" rel="noopener">Book on discoverydental.com ↗</a>
+        <a class="btn" href="https://discoverydental.com/new-patients/" target="_blank" rel="noopener">New patient? Start here</a>
+      </div>
+      <p class="fine rv">An independent creative concept celebrating Discovery Dental — not the official website. All 3D visuals are illustrative.</p>
+    </div>
+  </section>
+
+</main>
+
+<noscript><p style="position:fixed;inset:auto 0 0 0;padding:16px;background:#03141b;color:#fff;text-align:center">This experience needs JavaScript. Visit discoverydental.com for the official site.</p></noscript>
+<script type="module" src="main.js"></script>
+</body>
+</html>
