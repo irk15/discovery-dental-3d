@@ -112,27 +112,46 @@ function smoothNormals(geo) {
   for (const e of map.values()) { const l = Math.hypot(e[0], e[1], e[2]) || 1; for (const i of e[3]) n.setXYZ(i, e[0] / l, e[1] / l, e[2] / l); }
   n.needsUpdate = true; return geo;
 }
+const gau = (x, z, cx, cz, k) => Math.exp(-((x - cx) * (x - cx) + (z - cz) * (z - cz)) * k);
 const CROWN = {
-  molar: { pts: [[.5, 0], [.68, .09], [.88, .27], [1.02, .5], [1.03, .68], [.93, .85], [.76, .95], [.5, .995], [0, 1.01]], sx: 1.06, sz: 1.0, d: (x, z) => .2 * Math.pow(Math.abs(Math.sin(2.9 * x * .94) * Math.sin(2.9 * z)), .6) },
-  premolar: { pts: [[.7, 0], [.86, .18], [.95, .42], [.93, .66], [.8, .85], [.5, .97], [0, 1.0]], sx: 1.0, sz: 1.0, d: (x, z) => .24 * Math.pow(Math.abs(Math.sin(2.45 * x)), .7) * (1 - .45 * z * z) },
-  canine: { pts: [[.66, 0], [.86, .22], [.92, .48], [.78, .72], [.45, .9], [.16, 1.05], [0, 1.18]], sx: 1.0, sz: .9, d: () => 0 },
-  incisor: { pts: [[.6, 0], [.82, .2], [.95, .5], [.97, .76], [.9, .92], [.62, .99], [0, 1.0]], sx: 1.22, sz: 1.0, d: (x) => .035 * Math.cos(x * 2.4) }
+  molar: { pts: [[.5, 0], [.68, .09], [.88, .27], [1.02, .5], [1.03, .68], [.93, .85], [.76, .95], [.5, .995], [0, 1.01]], sx: 1.06, sz: 1.0, lob: [4, .03],
+    d: (x, z) => { const cusp = .38 * (gau(x, z, .5, .42, 6.5) + gau(x, z, -.5, .42, 6.5) + gau(x, z, .5, -.42, 6.5) + gau(x, z, -.5, -.42, 6.5)); const fossa = -.22 * gau(x, z, 0, 0, 7.5);
+      const gx = -.11 * Math.exp(-x * x * 80) * Math.exp(-z * z * 1.4), gz = -.1 * Math.exp(-z * z * 80) * Math.exp(-x * x * 1.3); const r = Math.hypot(x, z), rim = .06 * Math.exp(-(r - .8) * (r - .8) * 60);
+      const pit = -.05 * (gau(x, z, .22, .2, 90) + gau(x, z, -.24, -.18, 90)); return cusp + fossa + gx + gz + rim + pit; } },
+  premolar: { pts: [[.7, 0], [.86, .18], [.95, .42], [.93, .66], [.8, .85], [.5, .97], [0, 1.0]], sx: 1.0, sz: 1.0, lob: [2, .035],
+    d: (x, z) => { const c = .3 * (gau(x, z, 0, .46, 8) + gau(x, z, 0, -.46, 8)); const gr = -.14 * Math.exp(-z * z * 55) * Math.exp(-x * x * 1.2); const rim = .05 * Math.exp(-((Math.hypot(x, z) - .8) ** 2) * 60); return c + gr + rim - .04 * gau(x, z, .3, 0, 60); } },
+  canine: { pts: [[.66, 0], [.86, .22], [.94, .48], [.86, .72], [.62, .9], [.3, 1.02], [0, 1.07]], sx: 1.0, sz: .9, lob: [3, .03],
+    d: (x, z) => -.07 * gau(x, z, 0, -.35, 5) + .04 * Math.exp(-x * x * 40) * (z > 0 ? 1 : .3) },
+  incisor: { pts: [[.6, 0], [.82, .2], [.95, .5], [.97, .76], [.9, .92], [.62, .99], [0, 1.0]], sx: 1.22, sz: 1.0, lob: [3, .02],
+    d: (x, z) => { const m = .035 * Math.cos(x * 2.4); const mam = .03 * (Math.cos(x * 9) * .5 + .5) * (z > 0 ? 1 : .2); const sh = -.11 * gau(x, z, 0, -.5, 3.4); const ridge = .05 * Math.exp(-((Math.hypot(x * .8, z) - .85) ** 2) * 50); return m + mam + sh + ridge; } }
 };
+const cDent = new THREE.Color(0xf1e2bd), cMid = new THREE.Color(0xf4ecdc), cIns = new THREE.Color(0xf3f6f6), cBlue = new THREE.Color(0xe9f1f7), cStain = new THREE.Color(0xb98a52), _c = new THREE.Color();
 function crownGeo(type, w, h, dr, { segs = 72, prof = 44 } = {}) {
   const S = CROWN[type];
   const pts = new THREE.SplineCurve(S.pts.map(p => new THREE.Vector2(p[0], p[1]))).getPoints(prof).map(p => new THREE.Vector2(Math.max(0, p.x), p.y));
   pts[pts.length - 1].x = 0;
-  const g = new THREE.LatheGeometry(pts, segs); const pos = g.attributes.position;
+  const g = new THREE.LatheGeometry(pts, segs); const pos = g.attributes.position; const dv = new Float32Array(pos.count);
+  const [ln, la] = S.lob;
   for (let i = 0; i < pos.count; i++) {
     let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    const wt = sstep(.55, 1.0, y); y += wt * S.d(x, z); x *= S.sx; z *= S.sz;
+    const wt = sstep(.55, 1.0, y); const th = Math.atan2(z, x), rr = 1 + la * Math.cos(ln * th) * sstep(.1, .6, y) * (1 - wt * .6); x *= rr; z *= rr;
+    const dd = S.d(x, z) * wt; dv[i] = dd; y += dd; x *= S.sx; z *= S.sz;
     pos.setXYZ(i, x, y, z);
   }
-  g.computeBoundingBox(); const bb = g.boundingBox;
+  g.computeBoundingBox(); const bb = g.boundingBox; const H0 = bb.max.y - bb.min.y;
+  const col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const t = clamp((pos.getY(i) - bb.min.y) / H0, 0, 1);
+    _c.copy(cDent).lerp(cMid, sstep(.0, .38, t)).lerp(cIns, sstep(.5, .9, t)).lerp(cBlue, sstep(.88, 1, t) * .5);
+    const stain = clamp(-dv[i] * 3.2, 0, .8) * sstep(.55, .9, t); _c.lerp(cStain, stain * .55); _c.multiplyScalar(1 - stain * .18);
+    col[i * 3] = _c.r; col[i * 3 + 1] = _c.g; col[i * 3 + 2] = _c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.translate(-(bb.max.x + bb.min.x) / 2, -bb.min.y, -(bb.max.z + bb.min.z) / 2);
   g.scale(w / (bb.max.x - bb.min.x), h / (bb.max.y - bb.min.y), (w * dr) / (bb.max.z - bb.min.z));
   return smoothNormals(g);
 }
+const cRootTop = new THREE.Color(0xe9d8ac), cRootTip = new THREE.Color(0xc9ac6c);
 function rootGeo(len, r, dir, bend = .45, { seg = 28, N = 28 } = {}) {
   const pts = [];
   for (let k = 0; k <= N; k++) {
@@ -140,22 +159,45 @@ function rootGeo(len, r, dir, bend = .45, { seg = 28, N = 28 } = {}) {
     const rad = t >= .999 ? 0 : r * Math.pow(Math.max(1 - t, .0001), .62) * (t < 0 ? 1 + (-t) * .2 : 1);
     pts.push(new THREE.Vector2(rad, -len * t));
   }
-  const g = new THREE.LatheGeometry(pts, seg); const pos = g.attributes.position;
+  const g = new THREE.LatheGeometry(pts, seg); const pos = g.attributes.position; const col = new Float32Array(pos.count * 3);
   for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i), tt = clamp(-y / len, 0, 1.1);
-    pos.setXYZ(i, pos.getX(i) + dir * bend * tt * tt, y, pos.getZ(i) * .82);
+    const y = pos.getY(i), tt = clamp(-y / len, 0, 1.1); let x = pos.getX(i), z = pos.getZ(i);
+    const th = Math.atan2(z, x), mod = 1 + .07 * Math.cos(3 * th + tt * 1.5) * sstep(0, .5, tt) + .02 * Math.sin(tt * 18 + th * 2);
+    x *= mod; z *= mod;
+    pos.setXYZ(i, x + dir * bend * tt * tt, y, z * .82);
+    _c.copy(cRootTop).lerp(cRootTip, sstep(.1, 1, tt)); col[i * 3] = _c.r; col[i * 3 + 1] = _c.g; col[i * 3 + 2] = _c.b;
   }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return smoothNormals(g);
 }
 
+/* procedural enamel micro-detail: perikymata striations, pits, craze lines */
+function microTex(kind, size = 512) {
+  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'); const r = rng(kind === 'bump' ? 11 : kind === 'rough' ? 12 : 13);
+  const base = kind === 'bump' ? 128 : kind === 'rough' ? 44 : 128; g.fillStyle = `rgb(${base},${base},${base})`; g.fillRect(0, 0, size, size);
+  const lite = kind === 'rough' ? 'rgba(110,110,110,' : 'rgba(255,255,255,', dark = kind === 'rough' ? 'rgba(10,10,10,' : 'rgba(0,0,0,';
+  for (let y = 0; y < size; y += 3) { g.strokeStyle = (r() > .5 ? lite : dark) + (.05 + r() * .09) + ')'; g.lineWidth = .8 + r() * 1.6; g.beginPath(); g.moveTo(0, y); for (let x = 0; x <= size; x += 16) g.lineTo(x, y + Math.sin(x * .045 + y * .6) * 1.6); g.stroke(); }
+  for (let i = 0; i < 9000; i++) { const x = r() * size, y = r() * size, rad = .4 + r() * 1.3; g.fillStyle = (r() > .45 ? dark : lite) + (.08 + r() * .22) + ')'; g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill(); }
+  for (let i = 0; i < 14; i++) { g.strokeStyle = dark + (.07 + r() * .08) + ')'; g.lineWidth = .7; g.beginPath(); let x = r() * size, y = r() * size; g.moveTo(x, y); for (let k = 0; k < 7; k++) { x += (r() - .5) * 10; y += 12 + r() * 20; g.lineTo(x, y); } g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2); t.anisotropy = 8; return t;
+}
+const TEX_ENAMEL_B = microTex('bump'), TEX_ENAMEL_R = microTex('rough');
+const TEX_ROOT_B = (() => { const s = 512, c = document.createElement('canvas'); c.width = c.height = s; const g = c.getContext('2d'); const r = rng(21); g.fillStyle = '#808080'; g.fillRect(0, 0, s, s);
+  for (let x = 0; x < s; x += 2) { g.strokeStyle = (r() > .5 ? 'rgba(255,255,255,' : 'rgba(0,0,0,') + (.05 + r() * .12) + ')'; g.lineWidth = 1 + r() * 2; g.beginPath(); g.moveTo(x, 0); for (let y = 0; y <= s; y += 24) g.lineTo(x + Math.sin(y * .03 + x) * 2, y); g.stroke(); }
+  for (let i = 0; i < 6000; i++) { g.fillStyle = (r() > .5 ? 'rgba(255,255,255,' : 'rgba(0,0,0,') + (.06 + r() * .16) + ')'; g.beginPath(); g.arc(r() * s, r() * s, .5 + r() * 1.6, 0, 7); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 3); t.anisotropy = 8; return t; })();
+
 /* materials */
 const matEnamel = new THREE.MeshPhysicalMaterial({
-  color: 0xf8f3ea, roughness: .16, metalness: 0, clearcoat: 1, clearcoatRoughness: .07,
-  sheen: .6, sheenRoughness: .45, sheenColor: new THREE.Color(0xffe6c4),
-  iridescence: .22, iridescenceIOR: 1.3, envMapIntensity: 1.15
+  color: 0xffffff, vertexColors: true, roughness: 1, roughnessMap: TEX_ENAMEL_R, metalness: 0, ior: 1.55, specularIntensity: 1,
+  bumpMap: TEX_ENAMEL_B, bumpScale: 1.4, clearcoat: 1, clearcoatRoughness: .05,
+  sheen: .4, sheenRoughness: .4, sheenColor: new THREE.Color(0xffe6c4),
+  iridescence: .2, iridescenceIOR: 1.3, envMapIntensity: 1.05
 });
-const matDentin = new THREE.MeshPhysicalMaterial({ color: 0xe9d8ac, roughness: .5, clearcoat: .25, clearcoatRoughness: .5, envMapIntensity: .8 });
-const matGum = new THREE.MeshPhysicalMaterial({ color: 0xdf6a80, roughness: .38, clearcoat: .55, clearcoatRoughness: .25, sheen: 1, sheenColor: new THREE.Color(0xffb7c4), envMapIntensity: .9 });
+const matEnamelPlain = new THREE.MeshPhysicalMaterial({ color: 0xf8f3ea, roughness: .16, clearcoat: 1, clearcoatRoughness: .07, envMapIntensity: 1.15 });
+const matDentin = new THREE.MeshPhysicalMaterial({ color: 0xffffff, vertexColors: true, roughness: .55, bumpMap: TEX_ROOT_B, bumpScale: 1.6, clearcoat: .3, clearcoatRoughness: .45, sheen: .3, sheenColor: new THREE.Color(0xf3e2b8), envMapIntensity: .85 });
+const TEX_GUM = (() => { const sz = 256, c = document.createElement('canvas'); c.width = c.height = sz; const g = c.getContext('2d'); const r = rng(33); g.fillStyle = '#808080'; g.fillRect(0, 0, sz, sz); for (let i = 0; i < 5200; i++) { g.fillStyle = (r() > .5 ? 'rgba(255,255,255,' : 'rgba(0,0,0,') + (.1 + r() * .25) + ')'; g.beginPath(); g.arc(r() * sz, r() * sz, .8 + r() * 2.2, 0, 7); g.fill(); } const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(10, 3); t.anisotropy = 8; return t; })();
+const matGum = new THREE.MeshPhysicalMaterial({ bumpMap: TEX_GUM, bumpScale: 1.2, color: 0xdf6a80, roughness: .38, clearcoat: .55, clearcoatRoughness: .25, sheen: 1, sheenColor: new THREE.Color(0xffb7c4), envMapIntensity: .9 });
 function fresnelMat(color, power = 2.2, base = .04, op = 1) {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
@@ -165,10 +207,11 @@ function fresnelMat(color, power = 2.2, base = .04, op = 1) {
   });
 }
 
+const CUFF_GEO = smoothNormals(new THREE.LatheGeometry([[0, .1], [.7, .1], [.98, .02], [1.0, -.14], [.9, -.3], [.7, -.45], [.4, -.55], [0, -.58]].map(p => new THREE.Vector2(p[0], p[1])), IS_MOBILE ? 40 : 72));
 /* hero tooth assembly */
 const GEO = {
-  heroCrown: crownGeo('molar', 2.3, 1.95, .96, { segs: IS_MOBILE ? 64 : 96, prof: IS_MOBILE ? 40 : 60 }),
-  rootL: rootGeo(2.1, .46, -1), rootR: rootGeo(2.1, .46, 1)
+  heroCrown: crownGeo('molar', 2.3, 1.95, .96, { segs: IS_MOBILE ? 96 : 180, prof: IS_MOBILE ? 70 : 130 }),
+  rootL: rootGeo(2.1, .46, -1, .45, { seg: IS_MOBILE ? 48 : 84, N: IS_MOBILE ? 40 : 72 }), rootR: rootGeo(2.1, .46, 1, .45, { seg: IS_MOBILE ? 48 : 84, N: IS_MOBILE ? 40 : 72 })
 };
 function makeTooth(crownMat = matEnamel, rootMat = matDentin) {
   const g = new THREE.Group();
@@ -293,7 +336,7 @@ function pickable(stage, meshes) { stage.pick = meshes; }
   });
   // orbiting satellites (tiny pearls)
   const sats = [0, 1, 2, 3, 4].map(k => {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(.085 + k * .01, 24, 16), matEnamel); g.add(m); return m;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(.085 + k * .01, 24, 16), matEnamelPlain); g.add(m); return m;
   });
   // twinkle stars
   const stars = [[2.4, 1.8, .8], [-2.6, 1.1, 1.1], [1.6, -1.8, 1.6], [-1.9, -1.6, .6], [.3, 2.8, .2], [2.9, -.3, -.4]].map((p, k) => {
@@ -380,7 +423,7 @@ const ARCH = (() => {
   const out = []; let s = 0;
   ARCH_DEF.forEach(([type, w, h, dr], idx) => {
     const x = xAtArc(s + w / 2); s += w + .05;
-    out.push({ type, w, h, dr, idx, x, z: archZ(x), ry: Math.atan(2 * AK * x), geo: crownGeo(type, w, h, dr, { segs: IS_MOBILE ? 40 : 56, prof: 34 }) });
+    out.push({ type, w, h, dr, idx, x, z: archZ(x), ry: Math.atan(2 * AK * x), geo: crownGeo(type, w, h, dr, { segs: IS_MOBILE ? 64 : 110, prof: IS_MOBILE ? 48 : 80 }) });
   }); return out;
 })();
 const ARCH_MAXX = Math.max(...ARCH.map(d => d.x)) + .75;
@@ -397,6 +440,7 @@ function buildArch({ crooked = true, perMat = false, seed = 7 } = {}) {
     const amp = amps[d.idx], k = crooked ? 1 : 0;
     const off = { dx: (r() - .5) * .7 * amp * k, dz: (r() - .5) * .9 * amp * k, ry: (r() - .5) * 1.1 * amp * k, rz: (r() - .5) * .3 * amp * k, rx: (r() - .5) * .25 * amp * k };
     const mesh = new THREE.Mesh(d.geo, perMat ? matEnamel.clone() : matEnamel); mesh.rotation.order = 'YXZ'; g.add(mesh);
+    const cf = new THREE.Mesh(CUFF_GEO, matGum); cf.scale.set(d.w * .42, 1, d.w * d.dr * .42); cf.position.y = .03; mesh.add(cf);
     teeth.push({ mesh, d, side: sd, base: { x: sd * d.x, z: d.z, ry: sd * d.ry }, off, hover: 0, local: 0, prev: 0, rank: clamp((sd * d.x / ARCH_MAXX + 1) / 2, 0, 1) });
   }
   return { group: g, teeth, gum };
@@ -483,7 +527,7 @@ const PART_INFO = {
   const imp = new THREE.Group(); imp.scale.setScalar(.9); imp.position.y = -.1; g.add(imp);
   const mk = (geo, mat) => { const m = new THREE.Mesh(geo, mat); imp.add(m); return m; };
   const crownMat = matEnamel.clone();
-  const crown = mk(crownGeo('molar', 2.2, 1.5, .98, { segs: 72, prof: 44 }), crownMat);
+  const crown = mk(crownGeo('molar', 2.2, 1.5, .98, { segs: IS_MOBILE ? 80 : 150, prof: IS_MOBILE ? 60 : 110 }), crownMat);
   const abutMat = new THREE.MeshPhysicalMaterial({ color: 0xe0bd72, metalness: 1, roughness: .22, clearcoat: .6, envMapIntensity: 1.5 });
   const abutGeo = new THREE.LatheGeometry([[0, -.55], [.42, -.55], [.4, -.35], [.5, -.1], [.56, .15], [.5, .35], [.42, .55], [0, .55]].map(p => new THREE.Vector2(p[0], p[1])), 48); smoothNormals(abutGeo);
   const abut = mk(abutGeo, abutMat);
