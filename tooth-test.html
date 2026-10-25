@@ -1,0 +1,19 @@
+<!doctype html><meta charset=utf-8><style>html,body{margin:0;background:#0b2a30}canvas{display:block}</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { crownGeo, rootGeo, TEX_ENAMEL_B, TEX_ENAMEL_R, TEX_ROOT_B } from './teeth.js';
+const W=1280,H=640; const r=new THREE.WebGLRenderer({antialias:true}); r.setSize(W,H); r.toneMapping=THREE.ACESFilmicToneMapping; r.toneMappingExposure=1.0; document.body.appendChild(r.domElement);
+const s=new THREE.Scene(); s.background=new THREE.Color(0x0b2a30); s.environment=new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(),.04).texture; s.environmentIntensity=.8;
+const k=new THREE.DirectionalLight(0xfff0e0,2.2); k.position.set(4,6,6); s.add(k); const rim=new THREE.DirectionalLight(0x6ffff0,1.4); rim.position.set(-5,3,-4); s.add(rim);
+const mE=new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,roughness:1,roughnessMap:TEX_ENAMEL_R,ior:1.55,bumpMap:TEX_ENAMEL_B,bumpScale:1.2,clearcoat:1,clearcoatRoughness:.05,sheen:.4,sheenRoughness:.4,sheenColor:new THREE.Color(0xffe6c4),iridescence:.2,iridescenceIOR:1.3,envMapIntensity:1.05});
+const mD=new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,roughness:.55,bumpMap:TEX_ROOT_B,bumpScale:1.6,clearcoat:.3,clearcoatRoughness:.45,sheen:.3,sheenColor:new THREE.Color(0xf3e2b8),envMapIntensity:.85});
+const t0=performance.now();
+const items=[['molar',2.3,1.95,.96,-4.2],['premolar',.92*2,1.2*2,.94,-1.4],['canine',.88*2,1.62*2,.82,1.2],['incisor',.95*2,1.55*2,.62,3.6]];
+for(const [t,w,h,dr,x] of items){const m=new THREE.Mesh(crownGeo(t,w,h,dr,{segs:t==='molar'?150:110,prof:t==='molar'?110:80}),mE); m.position.set(x,-1,0); m.rotation.y=.5; s.add(m);
+ if(t==='molar'){for(const d of [-1,1]){const rm=new THREE.Mesh(rootGeo(2.1,.46,d),mD); rm.position.set(x+d*.42*Math.cos(.5),-1+.42,-d*.42*Math.sin(.5)); rm.rotation.y=.5; s.add(rm);}}}
+window.__ms=performance.now()-t0;
+const cam=new THREE.PerspectiveCamera(32,W/H,.1,100); cam.position.set(0,2,15); cam.lookAt(0,-.3,0);
+r.render(s,cam); document.title='done '+Math.round(window.__ms)+'ms';
+</script>

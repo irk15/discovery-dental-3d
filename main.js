@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { crownGeo, rootGeo, TEX_ENAMEL_B, TEX_ENAMEL_R, TEX_ROOT_B } from './teeth.js';
 
 /* ───────────────────────── helpers ───────────────────────── */
 const $ = (s, r = document) => r.querySelector(s);
@@ -112,81 +113,6 @@ function smoothNormals(geo) {
   for (const e of map.values()) { const l = Math.hypot(e[0], e[1], e[2]) || 1; for (const i of e[3]) n.setXYZ(i, e[0] / l, e[1] / l, e[2] / l); }
   n.needsUpdate = true; return geo;
 }
-const gau = (x, z, cx, cz, k) => Math.exp(-((x - cx) * (x - cx) + (z - cz) * (z - cz)) * k);
-const CROWN = {
-  molar: { pts: [[.5, 0], [.68, .09], [.88, .27], [1.02, .5], [1.03, .68], [.93, .85], [.76, .95], [.5, .995], [0, 1.01]], sx: 1.06, sz: 1.0, lob: [4, .03],
-    d: (x, z) => { const cusp = .38 * (gau(x, z, .5, .42, 6.5) + gau(x, z, -.5, .42, 6.5) + gau(x, z, .5, -.42, 6.5) + gau(x, z, -.5, -.42, 6.5)); const fossa = -.22 * gau(x, z, 0, 0, 7.5);
-      const gx = -.11 * Math.exp(-x * x * 80) * Math.exp(-z * z * 1.4), gz = -.1 * Math.exp(-z * z * 80) * Math.exp(-x * x * 1.3); const r = Math.hypot(x, z), rim = .06 * Math.exp(-(r - .8) * (r - .8) * 60);
-      const pit = -.05 * (gau(x, z, .22, .2, 90) + gau(x, z, -.24, -.18, 90)); return cusp + fossa + gx + gz + rim + pit; } },
-  premolar: { pts: [[.7, 0], [.86, .18], [.95, .42], [.93, .66], [.8, .85], [.5, .97], [0, 1.0]], sx: 1.0, sz: 1.0, lob: [2, .035],
-    d: (x, z) => { const c = .3 * (gau(x, z, 0, .46, 8) + gau(x, z, 0, -.46, 8)); const gr = -.14 * Math.exp(-z * z * 55) * Math.exp(-x * x * 1.2); const rim = .05 * Math.exp(-((Math.hypot(x, z) - .8) ** 2) * 60); return c + gr + rim - .04 * gau(x, z, .3, 0, 60); } },
-  canine: { pts: [[.66, 0], [.86, .22], [.94, .48], [.86, .72], [.62, .9], [.3, 1.02], [0, 1.07]], sx: 1.0, sz: .9, lob: [3, .03],
-    d: (x, z) => -.07 * gau(x, z, 0, -.35, 5) + .04 * Math.exp(-x * x * 40) * (z > 0 ? 1 : .3) },
-  incisor: { pts: [[.6, 0], [.82, .2], [.95, .5], [.97, .76], [.9, .92], [.62, .99], [0, 1.0]], sx: 1.22, sz: 1.0, lob: [3, .02],
-    d: (x, z) => { const m = .035 * Math.cos(x * 2.4); const mam = .03 * (Math.cos(x * 9) * .5 + .5) * (z > 0 ? 1 : .2); const sh = -.11 * gau(x, z, 0, -.5, 3.4); const ridge = .05 * Math.exp(-((Math.hypot(x * .8, z) - .85) ** 2) * 50); return m + mam + sh + ridge; } }
-};
-const cDent = new THREE.Color(0xf1e2bd), cMid = new THREE.Color(0xf4ecdc), cIns = new THREE.Color(0xf3f6f6), cBlue = new THREE.Color(0xe9f1f7), cStain = new THREE.Color(0xb98a52), _c = new THREE.Color();
-function crownGeo(type, w, h, dr, { segs = 72, prof = 44 } = {}) {
-  const S = CROWN[type];
-  const pts = new THREE.SplineCurve(S.pts.map(p => new THREE.Vector2(p[0], p[1]))).getPoints(prof).map(p => new THREE.Vector2(Math.max(0, p.x), p.y));
-  pts[pts.length - 1].x = 0;
-  const g = new THREE.LatheGeometry(pts, segs); const pos = g.attributes.position; const dv = new Float32Array(pos.count);
-  const [ln, la] = S.lob;
-  for (let i = 0; i < pos.count; i++) {
-    let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    const wt = sstep(.55, 1.0, y); const th = Math.atan2(z, x), rr = 1 + la * Math.cos(ln * th) * sstep(.1, .6, y) * (1 - wt * .6); x *= rr; z *= rr;
-    const dd = S.d(x, z) * wt; dv[i] = dd; y += dd; x *= S.sx; z *= S.sz;
-    pos.setXYZ(i, x, y, z);
-  }
-  g.computeBoundingBox(); const bb = g.boundingBox; const H0 = bb.max.y - bb.min.y;
-  const col = new Float32Array(pos.count * 3);
-  for (let i = 0; i < pos.count; i++) {
-    const t = clamp((pos.getY(i) - bb.min.y) / H0, 0, 1);
-    _c.copy(cDent).lerp(cMid, sstep(.0, .38, t)).lerp(cIns, sstep(.5, .9, t)).lerp(cBlue, sstep(.88, 1, t) * .5);
-    const stain = clamp(-dv[i] * 3.2, 0, .8) * sstep(.55, .9, t); _c.lerp(cStain, stain * .55); _c.multiplyScalar(1 - stain * .18);
-    col[i * 3] = _c.r; col[i * 3 + 1] = _c.g; col[i * 3 + 2] = _c.b;
-  }
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  g.translate(-(bb.max.x + bb.min.x) / 2, -bb.min.y, -(bb.max.z + bb.min.z) / 2);
-  g.scale(w / (bb.max.x - bb.min.x), h / (bb.max.y - bb.min.y), (w * dr) / (bb.max.z - bb.min.z));
-  return smoothNormals(g);
-}
-const cRootTop = new THREE.Color(0xe9d8ac), cRootTip = new THREE.Color(0xc9ac6c);
-function rootGeo(len, r, dir, bend = .45, { seg = 28, N = 28 } = {}) {
-  const pts = [];
-  for (let k = 0; k <= N; k++) {
-    const t = 1 - k / N * 1.12;
-    const rad = t >= .999 ? 0 : r * Math.pow(Math.max(1 - t, .0001), .62) * (t < 0 ? 1 + (-t) * .2 : 1);
-    pts.push(new THREE.Vector2(rad, -len * t));
-  }
-  const g = new THREE.LatheGeometry(pts, seg); const pos = g.attributes.position; const col = new Float32Array(pos.count * 3);
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i), tt = clamp(-y / len, 0, 1.1); let x = pos.getX(i), z = pos.getZ(i);
-    const th = Math.atan2(z, x), mod = 1 + .07 * Math.cos(3 * th + tt * 1.5) * sstep(0, .5, tt) + .02 * Math.sin(tt * 18 + th * 2);
-    x *= mod; z *= mod;
-    pos.setXYZ(i, x + dir * bend * tt * tt, y, z * .82);
-    _c.copy(cRootTop).lerp(cRootTip, sstep(.1, 1, tt)); col[i * 3] = _c.r; col[i * 3 + 1] = _c.g; col[i * 3 + 2] = _c.b;
-  }
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  return smoothNormals(g);
-}
-
-/* procedural enamel micro-detail: perikymata striations, pits, craze lines */
-function microTex(kind, size = 512) {
-  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'); const r = rng(kind === 'bump' ? 11 : kind === 'rough' ? 12 : 13);
-  const base = kind === 'bump' ? 128 : kind === 'rough' ? 44 : 128; g.fillStyle = `rgb(${base},${base},${base})`; g.fillRect(0, 0, size, size);
-  const lite = kind === 'rough' ? 'rgba(110,110,110,' : 'rgba(255,255,255,', dark = kind === 'rough' ? 'rgba(10,10,10,' : 'rgba(0,0,0,';
-  for (let y = 0; y < size; y += 3) { g.strokeStyle = (r() > .5 ? lite : dark) + (.05 + r() * .09) + ')'; g.lineWidth = .8 + r() * 1.6; g.beginPath(); g.moveTo(0, y); for (let x = 0; x <= size; x += 16) g.lineTo(x, y + Math.sin(x * .045 + y * .6) * 1.6); g.stroke(); }
-  for (let i = 0; i < 9000; i++) { const x = r() * size, y = r() * size, rad = .4 + r() * 1.3; g.fillStyle = (r() > .45 ? dark : lite) + (.08 + r() * .22) + ')'; g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill(); }
-  for (let i = 0; i < 14; i++) { g.strokeStyle = dark + (.07 + r() * .08) + ')'; g.lineWidth = .7; g.beginPath(); let x = r() * size, y = r() * size; g.moveTo(x, y); for (let k = 0; k < 7; k++) { x += (r() - .5) * 10; y += 12 + r() * 20; g.lineTo(x, y); } g.stroke(); }
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 2); t.anisotropy = 8; return t;
-}
-const TEX_ENAMEL_B = microTex('bump'), TEX_ENAMEL_R = microTex('rough');
-const TEX_ROOT_B = (() => { const s = 512, c = document.createElement('canvas'); c.width = c.height = s; const g = c.getContext('2d'); const r = rng(21); g.fillStyle = '#808080'; g.fillRect(0, 0, s, s);
-  for (let x = 0; x < s; x += 2) { g.strokeStyle = (r() > .5 ? 'rgba(255,255,255,' : 'rgba(0,0,0,') + (.05 + r() * .12) + ')'; g.lineWidth = 1 + r() * 2; g.beginPath(); g.moveTo(x, 0); for (let y = 0; y <= s; y += 24) g.lineTo(x + Math.sin(y * .03 + x) * 2, y); g.stroke(); }
-  for (let i = 0; i < 6000; i++) { g.fillStyle = (r() > .5 ? 'rgba(255,255,255,' : 'rgba(0,0,0,') + (.06 + r() * .16) + ')'; g.beginPath(); g.arc(r() * s, r() * s, .5 + r() * 1.6, 0, 7); g.fill(); }
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 3); t.anisotropy = 8; return t; })();
-
 /* materials */
 const matEnamel = new THREE.MeshPhysicalMaterial({
   color: 0xffffff, vertexColors: true, roughness: 1, roughnessMap: TEX_ENAMEL_R, metalness: 0, ior: 1.55, specularIntensity: 1,
